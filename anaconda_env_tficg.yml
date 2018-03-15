@@ -1,0 +1,12 @@
+name: tficg
+dependencies:
+- python=3
+- ipython=6.0.0
+- numpy
+- scipy
+- scikit-image
+- h5py
+- matplotlib
+- pyyaml
+- pillow
+- pip

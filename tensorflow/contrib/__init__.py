@@ -35,6 +35,7 @@ from tensorflow.contrib import framework
 from tensorflow.contrib import gan
 from tensorflow.contrib import graph_editor
 from tensorflow.contrib import grid_rnn
+from tensorflow.contrib import icg
 from tensorflow.contrib import image
 from tensorflow.contrib import input_pipeline
 from tensorflow.contrib import integrate

@@ -643,6 +643,7 @@ filegroup(
         "//third_party/mpi:all_files",
         "//third_party/sycl:all_files",
         "//third_party/sycl/sycl:all_files",
+        "//tensorflow/contrib/icg:all_files",
     ],
     visibility = [":__subpackages__"],
 )

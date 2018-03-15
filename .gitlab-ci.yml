@@ -1,0 +1,43 @@
+stages:
+  - dependencies
+  - build
+
+cache:
+  paths:
+    - bazel-source/output
+
+before_script:
+  - apt-get update
+  - apt-get install openjdk-8-jdk zip unzip --yes --no-install-recommends
+  - apt-get install python-numpy python-dev python-pip python-wheel --yes --no-install-recommends
+  - shopt -s expand_aliases
+  - alias bazel='/builds/icg-tensorflow/icg-tensorflow/bazel-source/output/bazel'
+
+bazel-build:
+  stage: dependencies
+  script:
+    - export BAZEL_VERSION=0.9.0
+    - wget --quiet https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-dist.zip
+    - mkdir -p bazel-source
+    - unzip bazel-$BAZEL_VERSION-dist.zip -d bazel-source
+    - cd bazel-source
+    - ./compile.sh
+    - bazel version
+  tags:
+    - ubuntu-16.04,cuda-8.0
+
+tensorflow-py2-build:
+  stage: build
+  script:
+    - bazel version
+    - export CUDA_ROOT=/usr/local/cuda/
+    - export COMPUTE_CAPABILITY="5.2"
+    - source tf_exports.sh
+    - export PYTHON_BIN_PATH=/usr/bin/python
+    - export PATH=$PATH:/builds/icg-tensorflow/icg-tensorflow/bazel-source/output/
+    - ./configure
+    - cat .tf_configure.bazelrc
+    - bazel build --config=opt --config=cuda //tensorflow/tools/pip_package:build_pip_package
+    - bazel-bin/tensorflow/tools/pip_package/build_pip_package tensorflow_pkg
+  tags:
+    - ubuntu-16.04,cuda-8.0

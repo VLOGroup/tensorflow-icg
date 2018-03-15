@@ -299,7 +299,7 @@ struct ApplyAdamNonCuda {
     // var   == θ
 
     m.device(d) += (grad - m) * (T(1) - beta1());
-    v.device(d) += (grad.square() - v) * (T(1) - beta2());
+    v.device(d) += (grad * grad.conjugate() - v) * (T(1) - beta2());
     if (use_nesterov) {
       var.device(d) -= ((grad * (T(1) - beta1()) + beta1() * m) * alpha) /
                        (v.sqrt() + epsilon());
@@ -496,6 +496,8 @@ class ApplyGradientDescentOp<SYCLDevice, T> : public OpKernel {
 TF_CALL_half(REGISTER_CPU_KERNELS);
 TF_CALL_float(REGISTER_CPU_KERNELS);
 TF_CALL_double(REGISTER_CPU_KERNELS);
+TF_CALL_complex64(REGISTER_CPU_KERNELS);
+TF_CALL_complex128(REGISTER_CPU_KERNELS);
 
 #if GOOGLE_CUDA
 // Forward declarations of the functor specializations for GPU.
@@ -510,12 +512,17 @@ namespace functor {
 DECLARE_GPU_SPEC(Eigen::half);
 DECLARE_GPU_SPEC(float);
 DECLARE_GPU_SPEC(double);
+DECLARE_GPU_SPEC(complex64);
+DECLARE_GPU_SPEC(complex128);
+
 #undef DECLARE_GPU_SPEC
 }  // namespace functor
 
 REGISTER_KERNELS(GPU, Eigen::half);
 REGISTER_KERNELS(GPU, float);
 REGISTER_KERNELS(GPU, double);
+REGISTER_KERNELS(GPU, complex64);
+REGISTER_KERNELS(GPU, complex128);
 #endif
 
 #ifdef TENSORFLOW_USE_SYCL
@@ -2337,6 +2344,8 @@ class ApplyMomentumOp : public OpKernel {
 TF_CALL_half(REGISTER_CPU_KERNELS);
 TF_CALL_float(REGISTER_CPU_KERNELS);
 TF_CALL_double(REGISTER_CPU_KERNELS);
+TF_CALL_complex64(REGISTER_CPU_KERNELS);\
+TF_CALL_complex128(REGISTER_CPU_KERNELS);
 
 #if GOOGLE_CUDA
 // Forward declarations of the functor specializations for GPU.
@@ -2352,12 +2361,16 @@ namespace functor {
 DECLARE_GPU_SPEC(Eigen::half);
 DECLARE_GPU_SPEC(float);
 DECLARE_GPU_SPEC(double);
+DECLARE_GPU_SPEC(complex64);
+DECLARE_GPU_SPEC(complex128);
 #undef DECLARE_GPU_SPEC
 }  // namespace functor
 
 REGISTER_KERNELS(GPU, Eigen::half);
 REGISTER_KERNELS(GPU, float);
 REGISTER_KERNELS(GPU, double);
+REGISTER_KERNELS(GPU, complex64);
+REGISTER_KERNELS(GPU, complex128);
 #endif
 #undef REGISTER_CPU_KERNELS
 #undef REGISTER_KERNELS
@@ -2476,6 +2489,8 @@ class SparseApplyMomentumOp : public OpKernel {
 TF_CALL_half(REGISTER_CPU_KERNELS);
 TF_CALL_float(REGISTER_CPU_KERNELS);
 TF_CALL_double(REGISTER_CPU_KERNELS);
+TF_CALL_complex64(REGISTER_CPU_KERNELS);
+TF_CALL_complex128(REGISTER_CPU_KERNELS);
 
 #undef REGISTER_CPU_KERNELS
 #undef REGISTER_KERNELS
@@ -2703,6 +2718,8 @@ class ApplyAdamOp<SYCLDevice, T> : public OpKernel {
 TF_CALL_half(REGISTER_CPU_KERNELS);
 TF_CALL_float(REGISTER_CPU_KERNELS);
 TF_CALL_double(REGISTER_CPU_KERNELS);
+TF_CALL_complex64(REGISTER_CPU_KERNELS);
+TF_CALL_complex128(REGISTER_CPU_KERNELS);
 
 #ifdef TENSORFLOW_USE_SYCL
 #define REGISTER_SYCL_KERNELS(T) REGISTER_KERNELS(SYCL, T);
@@ -2730,6 +2747,7 @@ namespace functor {
 DECLARE_GPU_SPEC(Eigen::half);
 DECLARE_GPU_SPEC(float);
 DECLARE_GPU_SPEC(double);
+
 #undef DECLARE_GPU_SPEC
 }  // namespace functor
 

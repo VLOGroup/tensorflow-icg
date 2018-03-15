@@ -22,6 +22,7 @@ from tensorflow.python.framework import ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.training import optimizer
 from tensorflow.python.training import training_ops
+from tensorflow.python.framework import dtypes
 
 
 class MomentumOptimizer(optimizer.Optimizer):
@@ -69,6 +70,14 @@ class MomentumOptimizer(optimizer.Optimizer):
     self._learning_rate = learning_rate
     self._momentum = momentum
     self._use_nesterov = use_nesterov
+
+  def _valid_dtypes(self):
+    """Valid types for loss, variables and gradients.
+    Adam does not only allow float types but also complex types.
+    Returns:
+    Valid types for loss, variables and gradients.
+    """
+    return set([dtypes.float16, dtypes.float32, dtypes.float64, dtypes.complex64, dtypes.complex128])
 
   def _create_slots(self, var_list):
     for v in var_list:

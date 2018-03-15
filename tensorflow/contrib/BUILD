@@ -41,6 +41,7 @@ py_library(
         "//tensorflow/contrib/graph_editor:graph_editor_py",
         "//tensorflow/contrib/grid_rnn:grid_rnn_py",
         "//tensorflow/contrib/hooks",
+	      "//tensorflow/contrib/icg:icg_py",
         "//tensorflow/contrib/image:distort_image_py",
         "//tensorflow/contrib/image:image_py",
         "//tensorflow/contrib/image:single_image_random_dot_stereograms_py",

@@ -23,7 +23,7 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import resource_variable_ops
 from tensorflow.python.training import optimizer
 from tensorflow.python.training import training_ops
-
+from tensorflow.python.framework import dtypes
 
 class GradientDescentOptimizer(optimizer.Optimizer):
   """Optimizer that implements the gradient descent algorithm.
@@ -41,6 +41,14 @@ class GradientDescentOptimizer(optimizer.Optimizer):
     """
     super(GradientDescentOptimizer, self).__init__(use_locking, name)
     self._learning_rate = learning_rate
+
+  def _valid_dtypes(self):
+    """Valid types for loss, variables and gradients.
+    Adam does not only allow float types but also complex types.
+    Returns:
+    Valid types for loss, variables and gradients.
+    """
+    return set([dtypes.float16, dtypes.float32, dtypes.float64, dtypes.complex64, dtypes.complex128])
 
   def _apply_dense(self, grad, var):
     return training_ops.apply_gradient_descent(

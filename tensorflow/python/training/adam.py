@@ -27,6 +27,7 @@ from tensorflow.python.ops import state_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.training import optimizer
 from tensorflow.python.training import training_ops
+from tensorflow.python.framework import dtypes
 
 
 class AdamOptimizer(optimizer.Optimizer):
@@ -109,6 +110,14 @@ class AdamOptimizer(optimizer.Optimizer):
     # Created in SparseApply if needed.
     self._updated_lr = None
 
+  def _valid_dtypes(self):
+    """Valid types for loss, variables and gradients.
+    Adam does not only allow float types but also complex types.
+    Returns:
+    Valid types for loss, variables and gradients.
+    """
+    return set([dtypes.float16, dtypes.float32, dtypes.float64, dtypes.complex64, dtypes.complex128])
+
   def _get_beta_accumulators(self):
     return self._beta1_power, self._beta2_power
 
@@ -188,7 +197,7 @@ class AdamOptimizer(optimizer.Optimizer):
       m_t = scatter_add(m, indices, m_scaled_g_values)
     # v_t = beta2 * v + (1 - beta2) * (g_t * g_t)
     v = self.get_slot(var, "v")
-    v_scaled_g_values = (grad * grad) * (1 - beta2_t)
+    v_scaled_g_values = (grad * math_ops.conj(grad)) * (1 - beta2_t)
     v_t = state_ops.assign(v, v * beta2_t, use_locking=self._use_locking)
     with ops.control_dependencies([v_t]):
       v_t = scatter_add(v, indices, v_scaled_g_values)
