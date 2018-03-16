@@ -119,7 +119,8 @@ class IPALMOptimizer(object):
                 Q_rhs = energy_old + np.real(np.sum((theta_new_np - theta_tilde_np) * np.conj(gradient_val))) +\
                                   self._L_np[param_idx] / 2.0 * np.linalg.norm(theta_new_np - theta_tilde_np) ** 2
 
-                if Q_lhs <= Q_rhs * 1.001:
+                delta = 1 + np.sign(Q_rhs) * 1e-3
+                if Q_lhs <= Q_rhs * delta:
                     self._L_np[param_idx] *= 0.75
                     if self._L_np[param_idx] <= 1e-3:
                         self._L_np[param_idx] = 1e-3
@@ -252,7 +253,8 @@ class StageIPALMOptimizer(object):
                                       self._L_np[param_idx][s] / 2.0 * np.real(np.sum((theta_new_np - theta_tilde_np) *
                                                                                       np.conj(theta_new_np - theta_tilde_np)))
 
-                    if Q_lhs <= Q_rhs * 1.001:
+                    delta = 1 + np.sign(Q_rhs) * 1e-3
+                    if Q_lhs <= Q_rhs * delta:
                         self._L_np[param_idx][s] *= 0.75
                         if self._L_np[param_idx][s] <= 1e-3:
                             self._L_np[param_idx][s] = 1e-3
