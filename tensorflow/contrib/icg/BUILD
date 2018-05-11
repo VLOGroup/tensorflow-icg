@@ -17,6 +17,7 @@ load("//tensorflow:tensorflow.bzl", "tf_custom_op_py_library")
 tf_custom_op_library(
     name = "python/ops/_icg_ops.so",
     srcs = ["ops/ffttools.cc",
+            "ops/ffttools.h",
             "common/definitions.h",
             "ops/activations.h", 
             "ops/activations.cc",
@@ -32,6 +33,7 @@ tf_custom_op_library(
 tf_kernel_library(
     name = "icg_ops_kernels",
     srcs = ["ops/ffttools.cc",
+            "ops/ffttools.h",
             "common/definitions.h",
             "ops/activations.h", 
             "ops/activations.cc",

@@ -4,15 +4,19 @@
 #include "tensorflow/contrib/icg/common/definitions.h"
 #include "tensorflow/core/framework/common_shape_fns.h"
 
+#include "ffttools.h"
+
 using namespace tensorflow;
+
+using CPUDevice = Eigen::ThreadPoolDevice;
+using GPUDevice = Eigen::GpuDevice;
 
 REGISTER_OP("Fftshift2d")
     .Attr("T: numbertype")
     .Input("input: T")
     .Output("output: T")
     .SetShapeFn(shape_inference::UnchangedShape)
-    .Doc(R"doc(Perform 2D fftshift
-  output = Fftshift2d(input)
+    .Doc(R"doc(Perform 2D fftshift output = Fftshift2d(input)
 )doc");
 
 REGISTER_OP("Ifftshift2d")
@@ -23,12 +27,63 @@ REGISTER_OP("Ifftshift2d")
     .Doc(R"doc(Perform 2D ifftshift output = Ifftshift2d(input)
 )doc");
 
-template<typename T>
-void Fftshift2dKernelLauncher(const Tensor * in, Tensor * out);
-template<typename T>
-void Ifftshift2dKernelLauncher(const Tensor * in, Tensor * out);
+template <typename T>
+struct Fftshift2dFunctor<CPUDevice, T> {
+  void operator()(OpKernelContext* context,
+                  const typename Tensor3<T>::ConstTensor &in,
+                  typename Tensor3<T>::Tensor &out)
+  {
+    const int height = in.dimensions()[1];
+    const int width = in.dimensions()[2];
 
-template<typename T>
+    for(int z = 0; z < in.dimensions()[0]; z++)
+    {
+      for(int y = 0; y < height; y++)
+      {
+        for(int x = 0; x < width; x++)
+        {
+          int x_mid = width / 2.f;
+          int y_mid = height / 2.f;
+
+          int x_dst = (x + x_mid) % width;
+          int y_dst = (y + y_mid) % height;
+
+          out(z, y_dst, x_dst) = in(z, y, x);
+        }
+      }
+    }
+  }
+};
+
+template <typename T>
+struct Ifftshift2dFunctor<CPUDevice, T> {
+  void operator()(OpKernelContext* context,
+                  const typename Tensor3<T>::ConstTensor &in,
+                  typename Tensor3<T>::Tensor &out)
+  {
+    const int height = in.dimensions()[1];
+    const int width = in.dimensions()[2];
+
+    for(int z = 0; z < in.dimensions()[0]; z++)
+    {
+      for(int y = 0; y < height; y++)
+      {
+        for(int x = 0; x < width; x++)
+        {
+          int x_mid = (width + 1.f) / 2.f;
+          int y_mid = (height + 1.f) / 2.f;
+
+          int x_dst = (x + x_mid) % width;
+          int y_dst = (y + y_mid) % height;
+
+          out(z, y_dst, x_dst) = in(z, y, x);
+        }
+      }
+    }
+  }
+};
+
+template<typename Device, typename T>
 class Fftshift2dOp : public OpKernel {
  public:
   explicit Fftshift2dOp(OpKernelConstruction* context) : OpKernel(context)
@@ -53,12 +108,24 @@ class Fftshift2dOp : public OpKernel {
     OP_REQUIRES_OK(context, context->allocate_output(0, output_shape,
                                                      &output_tensor));
 
-    // Call the cuda kernel launcher
-    Fftshift2dKernelLauncher<T>(&input_tensor, output_tensor);
+    // Flat inner dimensions
+    auto in = input_tensor.flat_inner_dims<T,3>();
+    auto out = output_tensor->flat_inner_dims<T,3>();
+
+    // Call the kernel
+    ApplyFftshift2d(context, in, out);
+  }
+
+ private:
+  void ApplyFftshift2d(OpKernelContext *context,
+                       const typename Tensor3<T>::ConstTensor &in,
+                       typename Tensor3<T>::Tensor &out)
+  {
+    Fftshift2dFunctor<Device, T>()(context, in, out);
   }
 };
 
-template<typename T>
+template<typename Device, typename T>
 class Ifftshift2dOp : public OpKernel {
  public:
   explicit Ifftshift2dOp(OpKernelConstruction* context) : OpKernel(context)
@@ -83,21 +150,48 @@ class Ifftshift2dOp : public OpKernel {
     OP_REQUIRES_OK(context, context->allocate_output(0, output_shape,
                                                      &output_tensor));
 
-    // Call the cuda kernel launcher
-    Ifftshift2dKernelLauncher<T>(&input_tensor, output_tensor);
+    // Flat inner dimensions
+    auto in = input_tensor.flat_inner_dims<T,3>();
+    auto out = output_tensor->flat_inner_dims<T,3>();
+
+    // Call the kernel
+    ApplyIfftshift2d(context, in, out);
+  }
+
+ private:
+  void ApplyIfftshift2d(OpKernelContext *context,
+                        const typename Tensor3<T>::ConstTensor &in,
+                        typename Tensor3<T>::Tensor &out)
+  {
+    Ifftshift2dFunctor<Device, T>()(context, in, out);
   }
 };
 
+#define REGISTER_CPU_KERNEL(T) \
+REGISTER_KERNEL_BUILDER(Name("Fftshift2d") \
+                        .Device(DEVICE_CPU) \
+                        .TypeConstraint<T>("T"), \
+                        Fftshift2dOp<CPUDevice, T>) \
+REGISTER_KERNEL_BUILDER(Name("Ifftshift2d") \
+                        .Device(DEVICE_CPU) \
+                        .TypeConstraint<T>("T"), \
+                        Ifftshift2dOp<CPUDevice, T>)
+
+TF_CALL_ICG_NUMBER_TYPES(REGISTER_CPU_KERNEL);
+#undef REGISTER_CPU
+
+#if GOOGLE_CUDA
 #define REGISTER_GPU_KERNEL(T) \
 REGISTER_KERNEL_BUILDER(Name("Fftshift2d") \
                         .Device(DEVICE_GPU) \
                         .TypeConstraint<T>("T"), \
-                        Fftshift2dOp<T>) \
+                        Fftshift2dOp<GPUDevice, T>) \
 REGISTER_KERNEL_BUILDER(Name("Ifftshift2d") \
                         .Device(DEVICE_GPU) \
                         .TypeConstraint<T>("T"), \
-                        Ifftshift2dOp<T>)
+                        Ifftshift2dOp<GPUDevice, T>)
 
 TF_CALL_ICG_NUMBER_TYPES(REGISTER_GPU_KERNEL);
 
 #undef REGISTER_GPU_KERNEL
+#endif

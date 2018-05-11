@@ -5,9 +5,11 @@
 #include "tensorflow/contrib/icg/common/definitions.h"
 #include "tensorflow/core/framework/register_types.h"
 
+#include "tensorflow/contrib/icg/ops/ffttools.h"
+
 template<typename T>
-__global__ void Ifftshift2dKernel(const typename tensorflow::TTypes<T,3>::ConstTensor input,
-                                  typename tensorflow::TTypes<T,3>::Tensor output)
+__global__ void Ifftshift2dKernel(const typename Tensor3<T>::ConstTensor input,
+                                  typename Tensor3<T>::Tensor output)
 {
   const int x = threadIdx.x + blockIdx.x * blockDim.x;
   const int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -29,8 +31,8 @@ __global__ void Ifftshift2dKernel(const typename tensorflow::TTypes<T,3>::ConstT
 }
 
 template<typename T>
-__global__ void Fftshift2dKernel(const typename tensorflow::TTypes<T,3>::ConstTensor input,
-                                 typename tensorflow::TTypes<T,3>::Tensor output)
+__global__ void Fftshift2dKernel(const typename Tensor3<T>::ConstTensor input,
+                                 typename Tensor3<T>::Tensor output)
 {
   const int x = threadIdx.x + blockIdx.x * blockDim.x;
   const int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -51,46 +53,42 @@ __global__ void Fftshift2dKernel(const typename tensorflow::TTypes<T,3>::ConstTe
   }
 }
 
-template<typename T>
-void Fftshift2dKernelLauncher(const tensorflow::Tensor *in,
-                              tensorflow::Tensor *out)
-{
-  auto kd_in = in->flat_inner_dims<T,3>();
-  auto kd_out = out->flat_inner_dims<T,3>();
+template <typename T>
+struct Fftshift2dFunctor<GPUDevice, T> {
+  void operator()(tensorflow::OpKernelContext* context,
+                  const typename Tensor3<T>::ConstTensor &in,
+                  typename Tensor3<T>::Tensor &out)
+  {
+    dim3 dimBlock(ICGVN_BLOCK_SIZE_3D_X, ICGVN_BLOCK_SIZE_3D_Y, ICGVN_BLOCK_SIZE_3D_Z);
+    dim3 dimGrid(
+        divUp(in.dimensions()[2], dimBlock.x),
+        divUp(in.dimensions()[1], dimBlock.y),
+        divUp(in.dimensions()[0], dimBlock.z));
 
+    Fftshift2dKernel<T> <<<dimGrid, dimBlock>>>(in, out);
+  }
+};
+
+template <typename T>
+struct Ifftshift2dFunctor<GPUDevice, T> {
+  void operator()(tensorflow::OpKernelContext* context,
+                  const typename Tensor3<T>::ConstTensor &in,
+                  typename Tensor3<T>::Tensor &out)
+{
   dim3 dimBlock(ICGVN_BLOCK_SIZE_3D_X, ICGVN_BLOCK_SIZE_3D_Y, ICGVN_BLOCK_SIZE_3D_Z);
   dim3 dimGrid(
-      divUp(kd_in.dimensions()[2], dimBlock.x),
-      divUp(kd_in.dimensions()[1], dimBlock.y),
-      divUp(kd_in.dimensions()[0], dimBlock.z));
+      divUp(in.dimensions()[2], dimBlock.x),
+      divUp(in.dimensions()[1], dimBlock.y),
+      divUp(in.dimensions()[0], dimBlock.z));
 
-  Fftshift2dKernel<T> <<<dimGrid, dimBlock>>>(kd_in, kd_out);
+  Ifftshift2dKernel<T> <<<dimGrid, dimBlock>>>(in, out);
 }
+};
 
-template<typename T>
-void Ifftshift2dKernelLauncher(const tensorflow::Tensor *in,
-               tensorflow::Tensor *out)
-{
-  auto kd_in = in->flat_inner_dims<T,3>();
-  auto kd_out = out->flat_inner_dims<T,3>();
-
-  dim3 dimBlock(ICGVN_BLOCK_SIZE_3D_X, ICGVN_BLOCK_SIZE_3D_Y, ICGVN_BLOCK_SIZE_3D_Z);
-  dim3 dimGrid(
-      divUp(kd_in.dimensions()[2], dimBlock.x),
-      divUp(kd_in.dimensions()[1], dimBlock.y),
-      divUp(kd_in.dimensions()[0], dimBlock.z));
-
-  Ifftshift2dKernel<T> <<<dimGrid, dimBlock>>>(kd_in, kd_out);
-}
-
-#define REGISTER_KERNEL_LAUNCHER(T) \
-    template void Ifftshift2dKernelLauncher<T>(const tensorflow::Tensor * in, \
-                                         tensorflow::Tensor * out); \
-    template void Fftshift2dKernelLauncher<T>(const tensorflow::Tensor * in, \
-                                         tensorflow::Tensor * out);
-
-TF_CALL_ICG_NUMBER_TYPES(REGISTER_KERNEL_LAUNCHER);
-
-#undef REGISTER_KERNEL_LAUNCHER
+#define REGISTER_GPU_FUNCTOR(T) \
+template struct  Fftshift2dFunctor<GPUDevice, T>; \
+template struct Ifftshift2dFunctor<GPUDevice, T>;
+TF_CALL_ICG_NUMBER_TYPES(REGISTER_GPU_FUNCTOR);
+#undef REGISTER_GPU_FUNCTOR
 
 #endif
