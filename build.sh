@@ -1,7 +1,7 @@
 #!/bin/bash
 # Check for gcc version according to
 # https://unix.stackexchange.com/questions/285924/how-to-compare-a-programs-version-in-a-shell-script
-currentgccver="$(gcc -dumpversion)"
+currentgccver="$($GCC_HOST_COMPILER_PATH -dumpversion)"
 requiredgccver="5.0.0"
 
 OPTFLAG=""
