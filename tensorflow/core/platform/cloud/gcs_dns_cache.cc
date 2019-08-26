@@ -17,10 +17,12 @@ limitations under the License.
 #ifndef _WIN32
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #else
+#include <Windows.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <Windows.h>
 #endif
 #include <sys/types.h>
 
@@ -61,7 +63,7 @@ const T& SelectRandomItemUniform(std::default_random_engine* random,
 GcsDnsCache::GcsDnsCache(Env* env, int64 refresh_rate_secs)
     : env_(env), refresh_rate_secs_(refresh_rate_secs) {}
 
-Status GcsDnsCache::AnnotateRequest(HttpRequest* request) {
+void GcsDnsCache::AnnotateRequest(HttpRequest* request) {
   // TODO(saeta): Blacklist failing IP addresses.
   mutex_lock l(mu_);
   if (!started_) {
@@ -71,8 +73,8 @@ Status GcsDnsCache::AnnotateRequest(HttpRequest* request) {
     addresses_ = ResolveNames(kCachedDomainNames);
 
     // Note: we opt to use a thread instead of a delayed closure.
-    worker_.reset(env_->StartThread(
-        {}, "gcs_dns_worker", std::bind(&GcsDnsCache::WorkerThread, this)));
+    worker_.reset(env_->StartThread({}, "gcs_dns_worker",
+                                    [this]() { return WorkerThread(); }));
     started_ = true;
   }
 
@@ -83,15 +85,12 @@ Status GcsDnsCache::AnnotateRequest(HttpRequest* request) {
     if (!addresses.empty()) {
       const string& chosen_address =
           SelectRandomItemUniform(&random_, addresses);
-      TF_RETURN_IF_ERROR(
-          request->AddResolveOverride(name, 443, chosen_address));
+      request->AddResolveOverride(name, 443, chosen_address);
       VLOG(1) << "Annotated DNS mapping: " << name << " --> " << chosen_address;
     } else {
       LOG(WARNING) << "No IP addresses available for " << name;
     }
   }
-
-  return Status::OK();
 }
 
 /* static */ std::vector<string> GcsDnsCache::ResolveName(const string& name) {

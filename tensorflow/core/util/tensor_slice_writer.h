@@ -16,8 +16,8 @@ limitations under the License.
 // The utility to write checkpoints for google brain tensor ops and v3
 // checkpoints for dist_belief.
 
-#ifndef TENSORFLOW_UTIL_TENSOR_SLICE_WRITER_H_
-#define TENSORFLOW_UTIL_TENSOR_SLICE_WRITER_H_
+#ifndef TENSORFLOW_CORE_UTIL_TENSOR_SLICE_WRITER_H_
+#define TENSORFLOW_CORE_UTIL_TENSOR_SLICE_WRITER_H_
 
 #include <unordered_map>
 
@@ -32,7 +32,6 @@ limitations under the License.
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/types.h"
-#include "tensorflow/core/util/saved_tensor_slice.pb_text.h"
 #include "tensorflow/core/util/saved_tensor_slice.pb.h"
 #include "tensorflow/core/util/saved_tensor_slice_util.h"
 
@@ -101,8 +100,8 @@ Status TensorSliceWriter::Add(const string& name, const TensorShape& shape,
   // The tensor and the slice have to be compatible
   if (shape.dims() != slice.dims()) {
     return errors::Internal("Incompatible tensor shape and slice: ", "shape = ",
-                            shape.DebugString(), ", slice = ",
-                            slice.DebugString());
+                            shape.DebugString(),
+                            ", slice = ", slice.DebugString());
   }
   DataType dt = DataTypeToEnum<T>::value;
   // We need to add an entry for "name" if there isn't an entry already.
@@ -111,12 +110,12 @@ Status TensorSliceWriter::Add(const string& name, const TensorShape& shape,
     // The same tensor has been registered -- we verify that the shapes and the
     // type agree.
     const SavedSliceMeta& ssm = sts_.meta().tensor(index);
-    CHECK_EQ(name, ssm.name()) << ProtoShortDebugString(ssm);
+    CHECK_EQ(name, ssm.name()) << ssm.ShortDebugString();
     TensorShape ssm_shape(ssm.shape());
     if (!shape.IsSameSize(ssm_shape)) {
-      return errors::Internal("Mismatching shapes: existing tensor = ",
-                              ssm_shape.DebugString(), ", trying to add name ",
-                              name, ", shape = ", shape.DebugString());
+      return errors::Internal(
+          "Mismatching shapes: existing tensor = ", ssm_shape.DebugString(),
+          ", trying to add name ", name, ", shape = ", shape.DebugString());
     }
     if (dt != ssm.type()) {
       return errors::Internal(
@@ -178,7 +177,7 @@ Status TensorSliceWriter::SaveData(const T* data, int64 num_elements,
 }
 
 template <>
-Status TensorSliceWriter::SaveData(const string* data, int64 num_elements,
+Status TensorSliceWriter::SaveData(const tstring* data, int64 num_elements,
                                    SavedSlice* ss);
 
 // Create a table builder that will write to "filename" in
@@ -192,4 +191,4 @@ Status CreateTableTensorSliceBuilder(const string& filename,
 
 }  // namespace tensorflow
 
-#endif  // TENSORFLOW_UTIL_TENSOR_SLICE_WRITER_H_
+#endif  // TENSORFLOW_CORE_UTIL_TENSOR_SLICE_WRITER_H_

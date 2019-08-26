@@ -1,40 +1,38 @@
-licenses(["notice"])  # Apache 2.0
+load("//tensorflow:tensorflow.bzl", "tf_cc_test", "tf_cuda_library")
+load(
+    "//tensorflow/core/platform:default/build_config.bzl",
+    "tf_additional_all_protos",
+    "tf_proto_library",
+    "tf_protos_grappler",
+    "tf_pyclif_proto_library",
+)
 
-load("//tensorflow:tensorflow.bzl", "tf_cuda_library", "tf_cc_test")
-
-filegroup(
-    name = "all_files",
-    srcs = glob(
-        ["**/*"],
-        exclude = [
-            "**/METADATA",
-            "**/OWNERS",
-        ],
-    ),
-    visibility = ["//tensorflow:__subpackages__"],
+package(
+    licenses = ["notice"],  # Apache 2.0
 )
 
 filegroup(
     name = "graph_properties_testdata",
-    srcs = glob(["graph_properties_testdata/*.pbtxt"]),
+    srcs = glob([
+        "graph_properties_testdata/*.pbtxt",
+        "graph_properties_testdata/*.pbtxt.html",
+    ]),
     visibility = ["//visibility:public"],
-)
-
-load(
-    "//tensorflow/core:platform/default/build_config.bzl",
-    "tf_proto_library",
-    "tf_additional_all_protos",
-)
-load(
-    "@local_config_cuda//cuda:build_defs.bzl",
-    "if_cuda",
 )
 
 tf_proto_library(
     name = "op_performance_data",
     srcs = ["op_performance_data.proto"],
     cc_api_version = 2,
+    make_default_target_header_only = True,
     protodeps = tf_additional_all_protos(),
+    visibility = ["//visibility:public"],
+)
+
+tf_pyclif_proto_library(
+    name = "op_performance_data_pyclif",
+    proto_lib = ":op_performance_data",
+    proto_srcfile = "op_performance_data.proto",
     visibility = ["//visibility:public"],
 )
 
@@ -44,15 +42,21 @@ cc_library(
     hdrs = ["graph_properties.h"],
     visibility = ["//visibility:public"],
     deps = [
-        ":op_performance_data_cc",
         ":utils",
+        "@com_google_absl//absl/types:optional",
+        "//tensorflow/core/grappler/utils:functions",
+        "//tensorflow/core/grappler/utils:topological_sort",
+        "//tensorflow/core/grappler:mutable_graph_view",
+        "//tensorflow/core/grappler:op_types",
         "//tensorflow/core:core_cpu_base",
         "//tensorflow/core:framework",
+        "//tensorflow/core:lib",
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/grappler:grappler_item",
         "//tensorflow/core/grappler:utils",
         "//tensorflow/core/grappler/clusters:cluster",
-    ],
+        "//tensorflow/core/grappler/optimizers:evaluation_utils",
+    ] + tf_protos_grappler(),
 )
 
 tf_cc_test(
@@ -132,16 +136,16 @@ tf_cuda_library(
     hdrs = ["utils.h"],
     visibility = ["//visibility:public"],
     deps = [
-        ":op_performance_data_cc",
+        "//third_party/eigen3",
         "//tensorflow/core:framework",
         "//tensorflow/core:graph",
+        "//tensorflow/core:gpu_id",
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_proto_parsing",
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/grappler:utils",
         "//tensorflow/core/grappler/clusters:utils",
-        "//third_party/eigen3",
-    ],
+    ] + tf_protos_grappler(),
 )
 
 tf_cc_test(
@@ -164,10 +168,22 @@ tf_cc_test(
 
 cc_library(
     name = "cost_estimator",
+    srcs = ["cost_estimator.cc"],
     hdrs = ["cost_estimator.h"],
     visibility = ["//visibility:public"],
     deps = [
         "//tensorflow/core:lib",
+        "//tensorflow/core:protos_all_cc",
+    ],
+)
+
+tf_cc_test(
+    name = "cost_estimator_test",
+    srcs = ["cost_estimator_test.cc"],
+    deps = [
+        ":cost_estimator",
+        "//tensorflow/core:test",
+        "//tensorflow/core:test_main",
     ],
 )
 
@@ -204,9 +220,8 @@ cc_library(
     hdrs = ["op_context.h"],
     visibility = ["//visibility:public"],
     deps = [
-        ":op_performance_data_cc",
         "//tensorflow/core:protos_all_cc",
-    ],
+    ] + tf_protos_grappler(),
 )
 
 cc_library(
@@ -234,6 +249,7 @@ tf_cc_test(
     name = "virtual_scheduler_test",
     srcs = ["virtual_scheduler_test.cc"],
     deps = [
+        ":utils",
         ":virtual_placer",
         ":virtual_scheduler",
         "//tensorflow/cc:cc_ops",
@@ -273,12 +289,11 @@ cc_library(
     deps = [
         ":cost_estimator",
         ":op_context",
-        ":op_performance_data_cc",
+        "//third_party/eigen3",
         "//tensorflow/core:framework",
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/grappler/clusters:utils",
-        "//third_party/eigen3",
-    ],
+    ] + tf_protos_grappler(),
 )
 
 tf_cc_test(
@@ -302,7 +317,6 @@ cc_library(
         ":cost_estimator",
         ":graph_properties",
         ":op_level_cost_estimator",
-        ":op_performance_data_cc",
         ":utils",
         ":virtual_placer",
         ":virtual_scheduler",
@@ -311,7 +325,9 @@ cc_library(
         "//tensorflow/core:lib",
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/grappler:grappler_item",
-    ],
+        "//tensorflow/core/grappler:op_types",
+        "//tensorflow/core/grappler:utils",
+    ] + tf_protos_grappler(),
 )
 
 tf_cc_test(

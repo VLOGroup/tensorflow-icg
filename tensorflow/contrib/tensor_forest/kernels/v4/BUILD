@@ -1,20 +1,14 @@
 # TensorFlow code for training random forests.
 
 load("//tensorflow:tensorflow.bzl", "tf_cc_test")
-load("//tensorflow/core:platform/default/build_config_root.bzl", "if_static")
+load("//tensorflow/core/platform:default/build_config_root.bzl", "if_static")
 
 package(
     default_visibility = ["//visibility:public"],
+    licenses = ["notice"],  # Apache 2.0
 )
-
-licenses(["notice"])  # Apache 2.0
 
 exports_files(["LICENSE"])
-
-filegroup(
-    name = "all_files",
-    srcs = glob(["**/*"]),
-)
 
 DECISION_TREE_RESOURCE_DEPS = [
     ":decision_node_evaluator",
