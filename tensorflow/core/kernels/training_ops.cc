@@ -357,13 +357,13 @@ struct ApplyAdamNonCuda {
       if (use_nesterov) {
         m += (g - m) * (T(1) - beta1());
         // v += (g.square() - v) * (T(1) - beta2());
-        v += (grad * grad.conjugate() - v) * (T(1) - beta2()); // NBPM: mod for complex numbers
+        v += (g * g.conjugate() - v) * (T(1) - beta2()); // NBPM: mod for complex numbers
         var -= ((g * (T(1) - beta1()) + beta1() * m) * alpha) /
                (v.sqrt() + epsilon());
       } else {
         m += (g - m) * (T(1) - beta1());
         // v += (g.square() - v) * (T(1) - beta2());
-        v += (grad * grad.conjugate() - v) * (T(1) - beta2()); // NBPM: mod for complex numbers
+        v += (g * g.conjugate() - v) * (T(1) - beta2()); // NBPM: mod for complex numbers
         var -= (m * alpha) / (v.sqrt() + epsilon());
       }
     };
