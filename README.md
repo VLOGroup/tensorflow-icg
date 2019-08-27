@@ -2,17 +2,11 @@
 
 This repo is a fork of a fork of the Tensorflow project.  In fact, the original fork is an old one, a couple years old, and unsurprisingly, I was having trouble getting the fool thing to compile.  So I forked it and merged the current master branch of the original Tensorflow.  That's what this repo is -- all the changes of the Tensorflow-ICG fork with the compilability of the current Tensorflow.
 
-Here is a Dockerfile that gets everything compiled.  It could use some clean up, but basically starts from current Tensorflow docker image and then builds fork.  This way we get the correct version of Bazel, build tools, etc. for free.
+Here is a Dockerfile that gets everything compiled for CPU only.  It could use some clean up, but basically starts from the current Tensorflow docker image and then builds the desired fork.  This way we get the correct version of Bazel, build tools, etc. for free.
 
 ```bash
 FROM tensorflow/tensorflow:devel
 MAINTAINER Nicholas McKibben (nicholas.bgp@gmail.com)
-
-# This is a fork of a fork of Tensorflow, so
-# we're going to replicate all the steps of
-# installation for tensorflow.  We get bazel
-# for free if we base the installation on the
-# official tensorflow docker image.
 
 # Get everything we need from apt-get
 ENV DEBIAN_FRONTEND noninteractive
@@ -30,14 +24,11 @@ ENV VIRTUAL_ENV /venv/tf-icg
 ENV PATH /venvs/tf-icg/bin:$PATH
 
 # Install tensorflow dependencies
-#CMD ["/venvs/tf-icg/bin/python", "pip install -U pip six numpy wheel setuptools mock future"]
-#CMD ["/venvs/tf-icg/bin/python", "pip install -U keras_applications==1.0.6 --no-deps"]
-#CMD ["/venvs/tf-icg/bin/python", "pip install -U keras_preprocessing==1.0.5 --no-deps"]
 RUN pip install -U pip six numpy wheel setuptools mock future
 RUN pip install -U keras_applications==1.0.6 --no-deps
 RUN pip install -U keras_preprocessing==1.0.5 --no-deps
 
-# Bazel configure
+# Bazel configure -- from ICG repo, not all options are listed, defaults are taken if none supplied
 ENV GCC_HOST_COMPILER_PATH /usr/bin/gcc
 ENV CC_OPT_FLAGS "-march=native"
 ENV USE_DEFAULT_PYTHON_LIB_PATH 1
@@ -59,17 +50,22 @@ ENV TF_NEED_MPI 0
 
 # Get the modified tensforflow package (https because we don't have openssh by default)
 # This is a big boy, so I want to watch the progress to see where we're at
-RUN git clone --progress --verbose https://github.com/mckib2/tensorflow-icg.git && cd tensorflow-icg
+RUN git clone --progress --verbose https://github.com/mckib2/tensorflow-icg.git
 WORKDIR tensorflow-icg
 RUN git pull
 
 # Configure and run Bazel
 RUN bash ./configure
-RUN bazel build --config=v2 //tensorflow/tools/pip_package:build_pip_package
+# RUN bazel build --config=v2 //tensorflow/tools/pip_package:build_pip_package
+RUN bazel build --config=opt //tensorflow/tools/pip_package:build_pip_package # ICG relies on depreciated contrib module
 
 # Create the package and install
 RUN bash ./bazel-bin/tensorflow/tools/pip_package/build_pip_package /mnt
 RUN pip install /mnt/tensorflow*.whl
+
+# Install Hammernik dependencies
+WORKDIR /
+pip install matplotlib
 ```
 
 <div><div align="center">
