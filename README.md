@@ -65,7 +65,10 @@ RUN pip install /mnt/tensorflow*.whl
 
 # Install Hammernik dependencies
 WORKDIR /
-pip install matplotlib scipy pyyaml
+RUN pip install matplotlib scipy pyyaml
+RUN git clone --progress --verbose https://github.com/VLOGroup/mri-variationalnetwork.git
+WORKDIR mri-variationalnetwork
+RUN git pull
 ```
 
 <div><div align="center">
