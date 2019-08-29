@@ -65,7 +65,7 @@ RUN pip install /mnt/tensorflow*.whl
 
 # Install Hammernik dependencies
 WORKDIR /
-pip install matplotlib
+pip install matplotlib scipy pyyaml
 ```
 
 <div><div align="center">
