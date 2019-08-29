@@ -69,6 +69,7 @@ RUN pip install matplotlib scipy pyyaml
 RUN git clone --progress --verbose https://github.com/VLOGroup/mri-variationalnetwork.git
 WORKDIR mri-variationalnetwork
 RUN git pull
+WORKDIR /
 ```
 
 <div><div align="center">
