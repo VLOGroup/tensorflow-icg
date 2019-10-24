@@ -48,7 +48,7 @@ http://docs.nvidia.com/deeplearning/sdk/cudnn-install/index.html#installlinux-ta
 We use [Anaconda](https://www.anaconda.com/download/#linux). Download python 3.6 version, install and verify that the Anaconda path is added to the `~/.bashrc`. Do not forget to `source ~/.bashrc` or log out and log in again. Next, we set up a new environment for tensorflow:
 
 ```
-conda env create -f <path-to-icg-tensorflow-repo>/anaconda_env_tficg.yml
+conda  create -f <path-to-icg-tensorflow-repo>/anaconda_env_tficg.yml --name icgenv
 ```
 
 ## Build tensorflow
