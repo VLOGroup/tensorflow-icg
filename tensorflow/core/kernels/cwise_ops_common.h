@@ -13,12 +13,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_KERNELS_CWISE_OPS_COMMON_H_
-#define TENSORFLOW_KERNELS_CWISE_OPS_COMMON_H_
+#ifndef TENSORFLOW_CORE_KERNELS_CWISE_OPS_COMMON_H_
+#define TENSORFLOW_CORE_KERNELS_CWISE_OPS_COMMON_H_
 
 // See docs in ../ops/math_ops.cc.
 
 #define EIGEN_USE_THREADS
+
+#include "tensorflow/core/lib/bfloat16/bfloat16.h"
 
 #ifdef TENSORFLOW_USE_SYCL
 #include "tensorflow/core/kernels/cwise_ops_sycl_common.h"
@@ -262,7 +264,8 @@ class UnaryVariantOp : public OpKernel {
     const Variant& v = inp.scalar<Variant>()();
     Variant v_out;
     OP_REQUIRES_OK(ctx, UnaryOpVariant<Device>(ctx, OpEnum, v, &v_out));
-    Tensor out(cpu_allocator(), DT_VARIANT, TensorShape());
+    int numa_node = DeviceNumaNode(ctx->device());
+    Tensor out(cpu_allocator(numa_node), DT_VARIANT, TensorShape());
     out.scalar<Variant>()() = std::move(v_out);
     ctx->set_output(0, std::move(out));
   }
@@ -291,7 +294,10 @@ struct BinaryFunctor<CPUDevice, Functor, NDIMS, false> {
     typedef typename Functor::out_type Tout;
     typedef typename Functor::in_type Tin;
     typedef typename Functor::func Binary;
-    typedef typename Eigen::internal::scalar_left<Tout, Tin, Binary> Unary;
+    typedef
+        typename Eigen::internal::scalar_left<Tout, Tin, Binary,
+                                              /*is_scalar_in_host_memory=*/true>
+            Unary;
     Assign(d, out, in.unaryExpr(Unary(scalar.data())));
   }
 
@@ -301,7 +307,9 @@ struct BinaryFunctor<CPUDevice, Functor, NDIMS, false> {
     typedef typename Functor::out_type Tout;
     typedef typename Functor::in_type Tin;
     typedef typename Functor::func Binary;
-    typedef typename Eigen::internal::scalar_right<Tout, Tin, Binary> Unary;
+    typedef typename Eigen::internal::scalar_right<
+        Tout, Tin, Binary, /*is_scalar_in_host_memory=*/true>
+        Unary;
     Assign(d, out, in.unaryExpr(Unary(scalar.data())));
   }
 
@@ -347,7 +355,10 @@ struct BinaryFunctor<CPUDevice, Functor, 2, false> {
     typedef typename Functor::out_type Tout;
     typedef typename Functor::in_type Tin;
     typedef typename Functor::func Binary;
-    typedef typename Eigen::internal::scalar_left<Tout, Tin, Binary> Unary;
+    typedef
+        typename Eigen::internal::scalar_left<Tout, Tin, Binary,
+                                              /*is_scalar_in_host_memory=*/true>
+            Unary;
     Assign(d, out, in.unaryExpr(Unary(scalar.data())));
   }
 
@@ -357,7 +368,9 @@ struct BinaryFunctor<CPUDevice, Functor, 2, false> {
     typedef typename Functor::out_type Tout;
     typedef typename Functor::in_type Tin;
     typedef typename Functor::func Binary;
-    typedef typename Eigen::internal::scalar_right<Tout, Tin, Binary> Unary;
+    typedef typename Eigen::internal::scalar_right<
+        Tout, Tin, Binary, /*is_scalar_in_host_memory=*/true>
+        Unary;
     Assign(d, out, in.unaryExpr(Unary(scalar.data())));
   }
 
@@ -487,7 +500,10 @@ struct BinaryFunctor<CPUDevice, Functor, NDIMS, true> {
     typedef typename Functor::out_type Tout;
     typedef typename Functor::in_type Tin;
     typedef typename Functor::func Binary;
-    typedef typename Eigen::internal::scalar_left<Tout, Tin, Binary> Unary;
+    typedef
+        typename Eigen::internal::scalar_left<Tout, Tin, Binary,
+                                              /*is_scalar_in_host_memory=*/true>
+            Unary;
     Assign(d, out, in.unaryExpr(Unary(scalar.data(), error)));
   }
 
@@ -497,7 +513,9 @@ struct BinaryFunctor<CPUDevice, Functor, NDIMS, true> {
     typedef typename Functor::out_type Tout;
     typedef typename Functor::in_type Tin;
     typedef typename Functor::func Binary;
-    typedef typename Eigen::internal::scalar_right<Tout, Tin, Binary> Unary;
+    typedef typename Eigen::internal::scalar_right<
+        Tout, Tin, Binary, /*is_scalar_in_host_memory=*/true>
+        Unary;
     Assign(d, out, in.unaryExpr(Unary(scalar.data(), error)));
   }
 
@@ -600,4 +618,4 @@ struct ApproximateEqual<CPUDevice, T> {
 
 }  // end namespace tensorflow
 
-#endif  // TENSORFLOW_KERNELS_CWISE_OPS_COMMON_H_
+#endif  // TENSORFLOW_CORE_KERNELS_CWISE_OPS_COMMON_H_

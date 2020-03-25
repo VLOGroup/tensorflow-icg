@@ -17,33 +17,37 @@ limitations under the License.
 
 #define EIGEN_USE_THREADS
 
-#if GOOGLE_CUDA
+#if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 #define EIGEN_USE_GPU
-#endif  // GOOGLE_CUDA
+#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
 #include "tensorflow/core/kernels/where_op.h"
 
 #include <memory>
 #include <numeric>
 #include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
+#include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/register_types.h"
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/framework/tensor_shape.h"
 #include "tensorflow/core/framework/tensor_types.h"
 #include "tensorflow/core/framework/types.h"
-#include "tensorflow/core/kernels/bounds_check.h"
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/types.h"
 
-#if GOOGLE_CUDA
+#if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 #include "tensorflow/core/common_runtime/gpu/gpu_event_mgr.h"
 #include "tensorflow/core/kernels/cuda_solvers.h"
+#if GOOGLE_CUDA
 #include "tensorflow/core/platform/cuda.h"
-
-using ::perftools::gputools::cuda::ScopedActivateExecutorContext;
-#endif  // GOOGLE_CUDA
+using stream_executor::cuda::ScopedActivateExecutorContext;
+#elif TENSORFLOW_USE_ROCM
+#include "tensorflow/core/platform/rocm.h"
+using stream_executor::rocm::ScopedActivateExecutorContext;
+#endif  // TENSORFLOW_USE_ROCM
+#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
 namespace tensorflow {
 
@@ -55,14 +59,14 @@ namespace functor {
 namespace {
 template <typename T>
 int64 CountAccumulator(const T* begin, const T* end) {
-  return std::accumulate(begin, end, 0L, [](int64 accum, const T& val) {
+  return std::accumulate(begin, end, 0LL, [](int64 accum, const T& val) {
     return accum + (val != T(0));
   });
 }
 
 template <>
 int64 CountAccumulator<bool>(const bool* begin, const bool* end) {
-  return std::accumulate(begin, end, 0L);
+  return std::accumulate(begin, end, 0LL);
 }
 
 }  // namespace
@@ -131,14 +135,16 @@ class WhereCPUOp : public OpKernel {
     OP_REQUIRES(
         context, input.dtype() != DT_HALF,
         errors::Unimplemented("No WhereOp available for float16/half type on "
-                              "GPU; dying in CPU WhereOp to avoid silently "
+                              "CPU; dying in CPU WhereOp to avoid silently "
                               "creating costly copies from device."));
 
     const int input_dims = input.dims();
 
     Tensor num_true;
-    OP_REQUIRES_OK(
-        context, context->allocate_temp(DT_INT64, TensorShape({}), &num_true));
+    AllocatorAttributes attr;
+    attr.set_on_host(true);
+    OP_REQUIRES_OK(context, context->allocate_temp(DT_INT64, TensorShape({}),
+                                                   &num_true, attr));
     auto num_true_t = num_true.scalar<int64>();
 
     Status s = functor::NumTrue<CPUDevice, T, int64>::Compute(
@@ -169,6 +175,9 @@ class WhereCPUOp : public OpKernel {
       HANDLE_DIM(3);
       HANDLE_DIM(4);
       HANDLE_DIM(5);
+      HANDLE_DIM(6);
+      HANDLE_DIM(7);
+      HANDLE_DIM(8);
 
       default:
         OP_REQUIRES(context, false,
@@ -199,7 +208,7 @@ TF_CALL_bool(REGISTER_WHERE_OP);
 
 #undef REGISTER_WHERE_OP
 
-#if GOOGLE_CUDA
+#if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
 namespace functor {
 
@@ -236,7 +245,10 @@ TF_CALL_bool(DECLARE_GPU_NUMTRUE_TYPE);
   DECLARE_GPU_WHERE(2, T);         \
   DECLARE_GPU_WHERE(3, T);         \
   DECLARE_GPU_WHERE(4, T);         \
-  DECLARE_GPU_WHERE(5, T);
+  DECLARE_GPU_WHERE(5, T);         \
+  DECLARE_GPU_WHERE(6, T);         \
+  DECLARE_GPU_WHERE(7, T);         \
+  DECLARE_GPU_WHERE(8, T);
 
 TF_CALL_WHERE_GPU_TYPES(DECLARE_GPU_WHERE_TYPES);
 
@@ -278,8 +290,7 @@ class WhereGPUOp : public AsyncOpKernel {
 
     auto num_true_t = num_true.scalar<Tindex>();
 
-    perftools::gputools::DeviceMemoryBase num_true_ptr(
-        static_cast<void*>(num_true_t.data()));
+    se::DeviceMemoryBase num_true_ptr(static_cast<void*>(num_true_t.data()));
     // Push kernel to stream to get number of true elements.
     const GPUDevice& d = context->eigen_device<GPUDevice>();
     Status s = functor::NumTrue<GPUDevice, T, Tindex>::Compute(
@@ -333,6 +344,9 @@ class WhereGPUOp : public AsyncOpKernel {
         HANDLE_DIM(3);
         HANDLE_DIM(4);
         HANDLE_DIM(5);
+        HANDLE_DIM(6);
+        HANDLE_DIM(7);
+        HANDLE_DIM(8);
 
         default:
           OP_REQUIRES_ASYNC(
@@ -369,9 +383,15 @@ class WhereGPUOp : public AsyncOpKernel {
       Name("Where").Device(DEVICE_GPU).TypeConstraint<T>("T"), WhereGPUOp<T>);
 
 TF_CALL_WHERE_GPU_TYPES(REGISTER_GPU_WHERE_OP);
+REGISTER_KERNEL_BUILDER(Name("Where")
+                            .Device(DEVICE_GPU)
+                            .TypeConstraint<int32>("T")
+                            .HostMemory("input")
+                            .HostMemory("index"),
+                        WhereCPUOp<int32>);
 
 #undef REGISTER_GPU_WHERE_OP
 
-#endif  // GOOGLE_CUDA
+#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
 }  // namespace tensorflow

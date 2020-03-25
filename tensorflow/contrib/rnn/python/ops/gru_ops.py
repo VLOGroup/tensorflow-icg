@@ -17,23 +17,19 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from tensorflow.contrib.rnn.ops import gen_gru_ops
-from tensorflow.contrib.util import loader
 from tensorflow.python.framework import ops
-from tensorflow.python.layers import base as base_layer
+from tensorflow.python.framework import tensor_shape
+from tensorflow.python.keras.engine import input_spec
 from tensorflow.python.ops import array_ops
+from tensorflow.python.ops import gen_rnn_ops
 from tensorflow.python.ops import init_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import rnn_cell_impl
-from tensorflow.python.ops import variable_scope as vs
-from tensorflow.python.platform import resource_loader
 from tensorflow.python.util.deprecation import deprecated_args
 
-_gru_ops_so = loader.load_op_library(
-    resource_loader.get_path_to_datafile("_gru_ops.so"))
 
-LayerRNNCell = rnn_cell_impl._LayerRNNCell  # pylint: disable=invalid-name,protected-access
+LayerRNNCell = rnn_cell_impl.LayerRNNCell  # pylint: disable=invalid-name
 
 
 @ops.RegisterGradient("GRUBlockCell")
@@ -84,7 +80,7 @@ def _GRUBlockCellGrad(op, *grad):
   r, u, c, _ = op.outputs
   _, _, _, d_h = grad
 
-  d_x, d_h_prev, d_c_bar, d_r_bar_u_bar = gen_gru_ops.gru_block_cell_grad(
+  d_x, d_h_prev, d_c_bar, d_r_bar_u_bar = gen_rnn_ops.gru_block_cell_grad(
       x, h_prev, w_ru, w_c, b_ru, b_c, r, u, c, d_h)
 
   x_h_prev = array_ops.concat([x, h_prev], 1)
@@ -151,7 +147,7 @@ class GRUBlockCell(LayerRNNCell):
       name: String, the name of the layer. Layers with the same name will
         share weights, but to avoid mistakes we require reuse=True in such
         cases.  By default this is "lstm_cell", for variable-name compatibility
-        with `tf.nn.rnn_cell.GRUCell`.
+        with `tf.compat.v1.nn.rnn_cell.GRUCell`.
 
     Raises:
       ValueError: if both cell_size and num_units are not None;
@@ -165,7 +161,7 @@ class GRUBlockCell(LayerRNNCell):
       num_units = cell_size
     self._cell_size = num_units
     # Inputs must be 2-dimensional.
-    self.input_spec = base_layer.InputSpec(ndim=2)
+    self.input_spec = input_spec.InputSpec(ndim=2)
 
   @property
   def state_size(self):
@@ -177,20 +173,22 @@ class GRUBlockCell(LayerRNNCell):
 
   def build(self, input_shape):
     # Check if the input size exist.
-    input_size = input_shape[1].value
+    input_size = tensor_shape.dimension_value(input_shape[1])
     if input_size is None:
       raise ValueError("Expecting input_size to be set.")
 
-    self._gate_kernel = vs.get_variable(
+    self._gate_kernel = self.add_variable(
         "w_ru", [input_size + self._cell_size, self._cell_size * 2])
-    self._gate_bias = vs.get_variable(
+    self._gate_bias = self.add_variable(
         "b_ru", [self._cell_size * 2],
         initializer=init_ops.constant_initializer(1.0))
-    self._candidate_kernel = vs.get_variable(
+    self._candidate_kernel = self.add_variable(
         "w_c", [input_size + self._cell_size, self._cell_size])
-    self._candidate_bias = vs.get_variable(
+    self._candidate_bias = self.add_variable(
         "b_c", [self._cell_size],
         initializer=init_ops.constant_initializer(0.0))
+
+    self.built = True
 
   def call(self, inputs, h_prev):
     """GRU cell."""
@@ -200,7 +198,7 @@ class GRUBlockCell(LayerRNNCell):
       raise ValueError("Shape of h_prev[1] incorrect: cell_size %i vs %s" %
                        (self._cell_size, cell_size))
 
-    _gru_block_cell = gen_gru_ops.gru_block_cell  # pylint: disable=invalid-name
+    _gru_block_cell = gen_rnn_ops.gru_block_cell  # pylint: disable=invalid-name
     _, _, _, new_h = _gru_block_cell(
         x=inputs,
         h_prev=h_prev,
@@ -220,19 +218,19 @@ class GRUBlockCellV2(GRUBlockCell):
 
   def build(self, input_shape):
     """GRU cell."""
-    input_size = input_shape[1].value
+    input_size = tensor_shape.dimension_value(input_shape[1])
     if input_size is None:
       raise ValueError("Expecting input_size to be set.")
 
-    with vs.variable_scope("gates"):
-      self._gate_kernel = vs.get_variable(
-          "kernel", [input_size + self._cell_size, self._cell_size * 2])
-      self._gate_bias = vs.get_variable(
-          "bias", [self._cell_size * 2],
-          initializer=init_ops.constant_initializer(1.0))
-    with vs.variable_scope("candidate"):
-      self._candidate_kernel = vs.get_variable(
-          "kernel", [input_size + self._cell_size, self._cell_size])
-      self._candidate_bias = vs.get_variable(
-          "bias", [self._cell_size],
-          initializer=init_ops.constant_initializer(0.0))
+    self._gate_kernel = self.add_variable(
+        "gates/kernel", [input_size + self._cell_size, self._cell_size * 2])
+    self._gate_bias = self.add_variable(
+        "gates/bias", [self._cell_size * 2],
+        initializer=init_ops.constant_initializer(1.0))
+    self._candidate_kernel = self.add_variable(
+        "candidate/kernel", [input_size + self._cell_size, self._cell_size])
+    self._candidate_bias = self.add_variable(
+        "candidate/bias", [self._cell_size],
+        initializer=init_ops.constant_initializer(0.0))
+
+    self.built = True

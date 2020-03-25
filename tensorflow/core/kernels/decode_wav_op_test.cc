@@ -32,8 +32,8 @@ limitations under the License.
 #include "tensorflow/core/platform/test.h"
 
 namespace tensorflow {
-
-using namespace ops;  // NOLINT(build/namespaces)
+namespace ops {
+namespace {
 
 TEST(DecodeWavOpTest, DecodeWavTest) {
   Scope root = Scope::NewRootScope();
@@ -55,7 +55,7 @@ TEST(DecodeWavOpTest, DecodeWavTest) {
       0x00, 0x80,  // fourth sample: -32768 (saturated)
   };
   Tensor content_tensor =
-      test::AsScalar<string>(string(wav_data.begin(), wav_data.end()));
+      test::AsScalar<tstring>(string(wav_data.begin(), wav_data.end()));
   Output content_op =
       Const(root.WithOpName("content_op"), Input::Initializer(content_tensor));
 
@@ -121,4 +121,6 @@ TEST(DecodeWavOpTest, DecodeWav_ShapeFn) {
   INFER_ERROR("channels must be non-negative, got -2", op, "[]");
 }
 
+}  // namespace
+}  // namespace ops
 }  // namespace tensorflow

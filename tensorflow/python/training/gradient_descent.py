@@ -23,8 +23,11 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import resource_variable_ops
 from tensorflow.python.training import optimizer
 from tensorflow.python.training import training_ops
-from tensorflow.python.framework import dtypes
+from tensorflow.python.util.tf_export import tf_export
 
+from tensorflow.python.framework import dtypes # NBPM: type checking
+
+@tf_export(v1=["train.GradientDescentOptimizer"])
 class GradientDescentOptimizer(optimizer.Optimizer):
   """Optimizer that implements the gradient descent algorithm.
   """
@@ -38,9 +41,17 @@ class GradientDescentOptimizer(optimizer.Optimizer):
       use_locking: If True use locks for update operations.
       name: Optional name prefix for the operations created when applying
         gradients. Defaults to "GradientDescent".
+
+    @compatibility(eager)
+    When eager execution is enabled, `learning_rate` can be a callable that
+    takes no arguments and returns the actual value to use. This can be useful
+    for changing these values across different invocations of optimizer
+    functions.
+    @end_compatibility
     """
     super(GradientDescentOptimizer, self).__init__(use_locking, name)
     self._learning_rate = learning_rate
+    self._learning_rate_tensor = None
 
   def _valid_dtypes(self):
     """Valid types for loss, variables and gradients.
@@ -75,5 +86,6 @@ class GradientDescentOptimizer(optimizer.Optimizer):
     return var.scatter_sub(delta, use_locking=self._use_locking)
 
   def _prepare(self):
-    self._learning_rate_tensor = ops.convert_to_tensor(self._learning_rate,
-                                                       name="learning_rate")
+    learning_rate = self._call_if_callable(self._learning_rate)
+    self._learning_rate_tensor = ops.convert_to_tensor(
+        learning_rate, name="learning_rate")

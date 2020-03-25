@@ -57,7 +57,7 @@ class GetSessionHandleOp : public OpKernel {
       handle->scalar<ResourceHandle>()() = resource_handle;
     } else {
       // Legacy behavior in V1.
-      handle->flat<string>().setConstant(tk.GetHandle(name()));
+      handle->flat<tstring>().setConstant(tk.GetHandle(name()));
     }
   }
 
@@ -110,7 +110,7 @@ class GetSessionTensorOp : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override {
     const Tensor& handle = ctx->input(0);
-    const string& name = handle.scalar<string>()();
+    const string& name = handle.scalar<tstring>()();
     Tensor val;
     OP_REQUIRES_OK(ctx, ctx->session_state()->GetTensor(name, &val));
     ctx->set_output(0, val);
@@ -144,7 +144,7 @@ REGISTER_GPU_KERNEL(bool);
 TF_CALL_NUMBER_TYPES(REGISTER_SYCL_KERNEL);
 REGISTER_SYCL_KERNEL(bool);
 #undef REGISTER_SYCL_KERNEL
-#endif // TENSORFLOW_USE_SYCL
+#endif  // TENSORFLOW_USE_SYCL
 
 class DeleteSessionTensorOp : public OpKernel {
  public:
@@ -153,7 +153,7 @@ class DeleteSessionTensorOp : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override {
     const Tensor& handle = ctx->input(0);
-    const string& name = handle.scalar<string>()();
+    const string& name = handle.scalar<tstring>()();
     OP_REQUIRES_OK(ctx, ctx->session_state()->DeleteTensor(name));
   }
 

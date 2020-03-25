@@ -22,8 +22,7 @@ limitations under the License.
 #include "tensorflow/core/lib/core/status_test_util.h"
 
 namespace tensorflow {
-using namespace ops;  // NOLINT(build/namespaces)
-
+namespace ops {
 namespace {
 
 Output Linear(const Scope& scope, Input x, Input w, Input b) {
@@ -38,8 +37,6 @@ void GetColocationConstraints(const Output& tensor,
   TF_EXPECT_OK(GetNodeAttr(tensor.op().node()->attrs(), kColocationAttrName,
                            constraints));
 }
-
-}  // namespace
 
 TEST(CCOpTest, Basic) {
   Scope root = Scope::NewRootScope();
@@ -203,10 +200,10 @@ TEST(CCOpTest, TemplatedConst) {
   test::ExpectTensorEqual<float>(
       out, test::AsTensor<float>({3.f, 2.f, -1.f, 0.f}, {2, 2}));
 
-  auto c2 = ops::Const<string>(root, {{"this"}, {"is"}, {"a"}, {"constant"}});
+  auto c2 = ops::Const<tstring>(root, {{"this"}, {"is"}, {"a"}, {"constant"}});
   test::GetTensor(root, c2, &out);
-  test::ExpectTensorEqual<string>(
-      out, test::AsTensor<string>({"this", "is", "a", "constant"}, {4, 1}));
+  test::ExpectTensorEqual<tstring>(
+      out, test::AsTensor<tstring>({"this", "is", "a", "constant"}, {4, 1}));
 }
 
 TEST(CCOpTest, EmptyConst) {
@@ -249,4 +246,6 @@ TEST(CCOpTest, InvalidFinalize) {
             string::npos);
 }
 
+}  // namespace
+}  // namespace ops
 }  // namespace tensorflow

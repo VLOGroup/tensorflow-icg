@@ -17,7 +17,7 @@ limitations under the License.
 #include <vector>
 
 #include "tensorflow/core/example/example.pb.h"
-#include "tensorflow/core/example/feature.pb_text.h"
+#include "tensorflow/core/example/feature.pb.h"
 #include "tensorflow/core/framework/numeric_op.h"
 #include "tensorflow/core/framework/register_types.h"
 #include "tensorflow/core/lib/core/errors.h"
@@ -101,7 +101,7 @@ Status FeatureDenseCopy(const std::size_t out_index, const string& name,
             "Values size: ",
             values.value_size(), " but output shape: ", shape.DebugString());
       }
-      auto out_p = out->flat<string>().data() + offset;
+      auto out_p = out->flat<tstring>().data() + offset;
       std::transform(values.value().data(),
                      values.value().data() + num_elements, out_p,
                      [](const string* s) { return *s; });
@@ -136,7 +136,7 @@ Tensor FeatureSparseCopy(const std::size_t batch, const string& key,
       const BytesList& values = feature.bytes_list();
       const int64 num_elements = values.value_size();
       Tensor out(dtype, TensorShape({num_elements}));
-      auto out_p = out.flat<string>().data();
+      auto out_p = out.flat<tstring>().data();
       std::transform(values.value().data(),
                      values.value().data() + num_elements, out_p,
                      [](const string* s) { return *s; });
@@ -175,8 +175,8 @@ int64 CopyIntoSparseTensor(const Tensor& in, const int batch,
       break;
     }
     case DT_STRING: {
-      std::copy_n(in.flat<string>().data(), num_elements,
-                  values->flat<string>().data() + offset);
+      std::copy_n(in.flat<tstring>().data(), num_elements,
+                  values->flat<tstring>().data() + offset);
       break;
     }
     default:
@@ -203,8 +203,9 @@ void RowDenseCopy(const std::size_t& out_index, const DataType& dtype,
       break;
     }
     case DT_STRING: {
-      std::copy_n(in.flat<string>().data(), num_elements,
-                  out->flat<string>().data() + offset);
+      // TODO(dero): verify.
+      std::copy_n(in.flat<tstring>().data(), num_elements,
+                  out->flat<tstring>().data() + offset);
       break;
     }
     default:
@@ -247,10 +248,11 @@ Status SingleExampleProtoToTensors(
       bool types_match;
       TF_RETURN_IF_ERROR(CheckTypesMatch(f, dtype, &types_match));
       if (!types_match) {
-        return errors::InvalidArgument("Name: ", example_name, ", Feature: ",
-                                       key, ".  Data types don't match. ",
+        return errors::InvalidArgument("Name: ", example_name,
+                                       ", Feature: ", key,
+                                       ".  Data types don't match. ",
                                        "Expected type: ", DataTypeString(dtype),
-                                       "  Feature is: ", ProtoDebugString(f));
+                                       "  Feature is: ", f.DebugString());
       }
       TF_RETURN_IF_ERROR(FeatureDenseCopy(batch_index, example_name, key, dtype,
                                           shape, f,
@@ -278,10 +280,11 @@ Status SingleExampleProtoToTensors(
       bool types_match;
       TF_RETURN_IF_ERROR(CheckTypesMatch(f, dtype, &types_match));
       if (!types_match) {
-        return errors::InvalidArgument("Name: ", example_name, ", Feature: ",
-                                       key, ".  Data types don't match. ",
+        return errors::InvalidArgument("Name: ", example_name,
+                                       ", Feature: ", key,
+                                       ".  Data types don't match. ",
                                        "Expected type: ", DataTypeString(dtype),
-                                       "  Feature is: ", ProtoDebugString(f));
+                                       "  Feature is: ", f.DebugString());
       }
       (*output_sparse_values_tmp)[d][batch_index] =
           FeatureSparseCopy(batch_index, key, dtype, f);
@@ -400,7 +403,7 @@ Status BatchExampleProtoToTensors(
   return Status::OK();
 }
 
-Status ParseSingleExampleAttrs::FinishInit() {
+Status ParseExampleAttrs::FinishInit() {
   if (static_cast<size_t>(num_sparse) != sparse_types.size()) {
     return errors::InvalidArgument("len(sparse_keys) != len(sparse_types)");
   }
@@ -419,6 +422,78 @@ Status ParseSingleExampleAttrs::FinishInit() {
   for (const DataType& type : sparse_types) {
     TF_RETURN_IF_ERROR(CheckValidType(type));
   }
+  return Status::OK();
+}
+
+Status ParseSingleExampleAttrs::FinishInit() {
+  if (sparse_keys.size() != sparse_types.size()) {
+    return errors::InvalidArgument("len(sparse_keys) != len(sparse_types)");
+  }
+  if (dense_keys.size() != dense_types.size()) {
+    return errors::InvalidArgument("len(dense_keys) != len(dense_types)");
+  }
+  if (dense_keys.size() != dense_shapes.size()) {
+    return errors::InvalidArgument("len(dense_keys) != len(dense_shapes)");
+  }
+  for (const DataType& type : dense_types) {
+    TF_RETURN_IF_ERROR(CheckValidType(type));
+  }
+  for (const DataType& type : sparse_types) {
+    TF_RETURN_IF_ERROR(CheckValidType(type));
+  }
+  return Status::OK();
+}
+
+Status ParseSequenceExampleAttrs::FinishInit() {
+  if (num_context_sparse != context_sparse_keys.size() ||
+      num_context_sparse != context_sparse_types.size()) {
+    return errors::InvalidArgument(
+        "num_context_sparse (", num_context_sparse,
+        ") must match the size of context_sparse_keys (",
+        context_sparse_keys.size(), ") and context_sparse_types (",
+        context_sparse_types.size(), ")");
+  }
+  if (num_context_dense != context_dense_keys.size() ||
+      num_context_dense != context_dense_types.size() ||
+      num_context_dense != context_dense_shapes.size()) {
+    return errors::InvalidArgument(
+        "num_context_dense (", num_context_dense,
+        ") must match the size of context_dense_keys (",
+        context_dense_keys.size(), "), context_dense_types (",
+        context_dense_types.size(), ") and context_dense_shapes (",
+        context_dense_shapes.size(), ")");
+  }
+  if (num_feature_list_sparse != feature_list_sparse_keys.size() ||
+      num_feature_list_sparse != feature_list_sparse_types.size()) {
+    return errors::InvalidArgument(
+        "num_feature_list_sparse (", num_feature_list_sparse,
+        ") must match the size of feature_list_sparse_keys (",
+        feature_list_sparse_keys.size(), ") and feature_list_sparse_types (",
+        feature_list_sparse_types.size(), ")");
+  }
+  if (num_feature_list_dense != feature_list_dense_keys.size() ||
+      num_feature_list_dense != feature_list_dense_types.size() ||
+      num_feature_list_dense != feature_list_dense_shapes.size()) {
+    return errors::InvalidArgument(
+        "num_feature_list_dense (", num_feature_list_dense,
+        ") must match the size of feature_list_dense_keys (",
+        feature_list_dense_keys.size(), "), feature_list_dense_types (",
+        feature_list_dense_types.size(), ") and feature_list_dense_shapes (",
+        feature_list_dense_shapes.size(), ")");
+  }
+  for (const DataType& type : context_dense_types) {
+    TF_RETURN_IF_ERROR(CheckValidType(type));
+  }
+  for (const DataType& type : context_sparse_types) {
+    TF_RETURN_IF_ERROR(CheckValidType(type));
+  }
+  for (const DataType& type : feature_list_dense_types) {
+    TF_RETURN_IF_ERROR(CheckValidType(type));
+  }
+  for (const DataType& type : feature_list_sparse_types) {
+    TF_RETURN_IF_ERROR(CheckValidType(type));
+  }
+
   return Status::OK();
 }
 
